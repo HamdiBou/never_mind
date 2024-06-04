@@ -11,22 +11,18 @@
 #define GREEN "\033[92m"
 #define WORKTREE_SIZE 10
 
-// Fancy header for the project output console
 void header() {
     printf("%sZahrane@Zahry %sGit ~\n%s",GREEN, PURPLE, RESET_STYLE);
 }
 
-// Just some code formatting
 void footer() {
     printf("\n\n");
     getchar();
 }
 
-// Terminal Methods
 int hashFile(char* source, char* dest) {
     char command[1024];
 
-    // Create a temporary file name
     char tmpFileName[] = "/tmp/hashXXXXXX";
     int fd = mkstemp(tmpFileName);
     if (fd == -1) {
@@ -34,21 +30,17 @@ int hashFile(char* source, char* dest) {
         return -1;
     }
     close(fd);
-
-    // Construct the command to calculate hash using sha256sum
     snprintf(command, sizeof(command), "sha256sum %s > %s", source, tmpFileName);
 
-    // Execute the command
     if (system(command) != 0) {
         perror("Error executing sha256sum command");
-        remove(tmpFileName); // Clean up in case of error
+        remove(tmpFileName); 
         return -1;
     }
 
-    // Copy the hash from temporary file to destination file
     if (rename(tmpFileName, dest) != 0) {
         perror("Error renaming temporary file to destination file");
-        remove(tmpFileName); // Clean up in case of error
+        remove(tmpFileName); 
         return -1;
     }
 
@@ -88,7 +80,7 @@ char* sha256file(char* file) {
 //Implémentation d’une liste de chaînes de caractèes///
 ///////////////////////////////////////////////////////
 
-// Fonction pour initialiser une liste vide
+
 List* initList() {
     List* list = (List*)malloc(sizeof(List));
     if (list == NULL) {
@@ -261,7 +253,7 @@ int file_exists(char *file) {
         }
         current = current->next;
     }
-    // Free the list
+   
     while (*list) {
         Cell* temp = *list;
         *list = (*list)->next;
@@ -317,22 +309,17 @@ void blobFile(char* file) {
         fprintf(stderr, "Source file does not exist.\n");
         return;
     }
-
-    // Calculate hash of the file content
     char* hash = sha256file(file);
     if (!hash) {
         fprintf(stderr, "Error calculating file hash.\n");
         return;
     }
-
-    // Get the path based on hash
     char* path = hashToPath(hash);
     if (!path) {
         free(hash);
         return;
     }
 
-    // Create the directory if it doesn't exist
     char dir[3];
     snprintf(dir, sizeof(dir), "%c%c", hash[0], hash[1]);
     char mkdirCommand[128];
@@ -343,10 +330,7 @@ void blobFile(char* file) {
         free(path);
         return;
     }
-
-    // Copy the file to the new location
     cp(path, file);
-
     free(hash);
     free(path);
 }
@@ -394,7 +378,6 @@ WorkFile* stwf(char* ch) {
     return wf;
 }
 
-// Manipulation de WORKTREE
 
 WorkTree* initWorkTree() {
     WorkTree* wt = (WorkTree*)malloc(sizeof(WorkTree));
@@ -415,16 +398,16 @@ int inWorkTree(WorkTree* wt, char* name) {
 
 int appendWorkTree(WorkTree* wt, char* name, char* hash, int mode) {
     if (inWorkTree(wt, name) != -1) {
-        return -1;  // Already exists
+        return -1; 
     }
     if (wt->n >= wt->size) {
-        return -1;  // No space left
+        return -1;  
     }
     WorkFile* wf = createWorkFile(name);
     wf->hash = strdup(hash);
     wf->mode = mode;
     wt->tab[wt->n++] = *wf;
-    return 0;  // Success
+    return 0; 
 }
 
 char* wtts(WorkTree* wt) {
@@ -453,7 +436,7 @@ WorkTree* stwt(char* ch) {
 int wttf(WorkTree* wt, char* file) {
     FILE* fp = fopen(file, "w");
     if (!fp) {
-        return -1;  // Error opening file
+        return -1;  
     }
     char* wt_str = wtts(wt);
     fprintf(fp, "%s", wt_str);
@@ -465,7 +448,7 @@ int wttf(WorkTree* wt, char* file) {
 WorkTree* ftwt(char* file) {
     FILE* fp = fopen(file, "r");
     if (!fp) {
-        return NULL;  // Error opening file
+        return NULL;  
     }
     char buffer[1024];
     char* content = (char*)malloc(1024 * sizeof(char));
@@ -490,23 +473,20 @@ char* blobWorkTree(WorkTree* wt) {
     }
     close(temp_fd);
 
-    // Open the temporary file for writing
     FILE* temp_file = fopen(temp_filename, "w");
     if (temp_file == NULL) {
         fprintf(stderr, "Error opening temporary file\n");
         exit(1);
     }
 
-    // Write the WorkTree content to the temporary file
     for (int i = 0; i < wt->n; i++) {
         WorkFile* wf = &(wt->tab[i]);
         fprintf(temp_file, "%s %s %d\n", wf->name, wf->hash, wf->mode);
     }
 
-    // Close the temporary file
+    
     fclose(temp_file);
 
-    // Calculate the hash of the temporary file
     char* hash = sha256file(temp_filename);
     if (hash == NULL) {
         fprintf(stderr, "Error calculating hash of temporary file\n");
@@ -514,51 +494,42 @@ char* blobWorkTree(WorkTree* wt) {
     }
 
     // Rename the temporary file to include the hash in the filename
-    char new_filename[strlen(hash) + 3]; // 2 for ".t" and 1 for null terminator
+    char new_filename[strlen(hash) + 3]; 
     sprintf(new_filename, "%s.t", hash);
     rename(temp_filename, new_filename);
 
     return hash;
 }
 void restoreWorkTree(WorkTree* wt, char* path) {
-    // Read the contents of the saved WorkTree file
     WorkTree* saved_wt = ftwt(path);
     if (saved_wt == NULL) {
         fprintf(stderr, "Error reading saved WorkTree\n");
         return;
     }
 
-    // Process each WorkFile in the saved WorkTree
+   
     for (int i = 0; i < saved_wt->n; i++) {
         WorkFile* saved_wf = &(saved_wt->tab[i]);
 
-        // Check if the file exists in the current WorkTree
         int index = inWorkTree(wt, saved_wf->name);
         if (index != -1) {
             WorkFile* wf = &(wt->tab[index]);
 
-            // Restore the file using its saved hash and mode
             cp(saved_wf->name, hashToPath(saved_wf->hash));
             setMode(saved_wf->mode, saved_wf->name);
         } else {
-            // File does not exist in the current WorkTree, so create it
             cp(saved_wf->name, hashToPath(saved_wf->hash));
             setMode(saved_wf->mode, saved_wf->name);
         }
     }
-
-    // Clean up
     free(saved_wt);
 }
 char* saveWorkTree(WorkTree* wt, char* path) {
-    // Create a temporary WorkTree to store the modified WorkFiles
+    
     WorkTree* temp_wt = initWorkTree();
-
-    // Process each WorkFile in the WorkTree
     for (int i = 0; i < wt->n; i++) {
         WorkFile* wf = &(wt->tab[i]);
 
-        // If it's a file, create an instant snapshot and update its hash and mode
         if (file_exists(wf->name)) {
             blobFile(wf->name);
             char* hash = sha256file(wf->name);
@@ -570,9 +541,9 @@ char* saveWorkTree(WorkTree* wt, char* path) {
             wf->mode = getChmod(wf->name);
         }
 
-        // If it's a directory, recursively process its contents
+
         else {
-            // Create a new WorkTree for the directory
+           
             WorkTree* subdir_wt = initWorkTree();
             List* dir_list = listdir(wf->name);
             if (dir_list == NULL) {
@@ -580,7 +551,7 @@ char* saveWorkTree(WorkTree* wt, char* path) {
                 exit(1);
             }
 
-            // Add files and subdirectories to the new WorkTree
+           
             Cell* current = *dir_list;
             while (current) {
                 char* dir_entry = current->data;
@@ -588,24 +559,21 @@ char* saveWorkTree(WorkTree* wt, char* path) {
                 current = current->next;
             }
 
-            // Recursively process the new WorkTree
+           
             char* subdir_hash = saveWorkTree(subdir_wt, path);
             appendWorkTree(temp_wt, wf->name, subdir_hash, getChmod(wf->name));
 
-            // Clean up
             free(dir_list);
             free(subdir_wt);
             free(subdir_hash);
         }
     }
 
-    // Create an instant snapshot of the modified WorkTree
     char* wt_hash = blobWorkTree(temp_wt);
 
-    // Clean up
+   
     free(temp_wt);
 
-    // Write the modified WorkTree to the specified path
     wttf(wt, path);
 
     return wt_hash;
